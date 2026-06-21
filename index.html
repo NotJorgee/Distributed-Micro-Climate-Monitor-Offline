@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Temp & Humidity Monitoring System</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <link rel="icon" type="image/png" href="favicon.png">
+    <style>
+        /* CSS Reset & Variables */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg: #f4f7f6;
+            --sidebar: #2c3e50;
+            --text: #333;
+            --accent: #2980b9;
+            --success: #27ae60;
+            --danger: #e74c3c;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Layout Structure */
+        aside {
+            width: 280px;
+            background-color: var(--sidebar);
+            color: white;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            text-align: center;
+            border-bottom: 1px solid #34495e;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+
+        #node-list {
+            list-style: none;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .node-item {
+            padding: 15px 20px;
+            cursor: pointer;
+            border-bottom: 1px solid #34495e;
+            transition: 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .node-item:hover {
+            background-color: #34495e;
+        }
+
+        .node-item.active {
+            background-color: var(--accent);
+            border-left: 5px solid white;
+        }
+
+        .add-node-btn {
+            width: 100%;
+            padding: 15px;
+            background: #34495e;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-top: 1px solid #1a252f;
+            transition: 0.2s;
+            font-weight: bold;
+        }
+
+        .add-node-btn:hover {
+            background: #2c3e50;
+            color: var(--success);
+        }
+
+        main {
+            flex: 1;
+            padding: 30px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* Dashboard Cards */
+        .header-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-card h1 {
+            margin-bottom: 5px;
+            color: var(--accent);
+        }
+
+        .badge {
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            color: white;
+        }
+
+        .badge.online {
+            background-color: var(--success);
+        }
+
+        .badge.offline {
+            background-color: var(--danger);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        .temp-color {
+            color: #e67e22;
+        }
+
+        .hum-color {
+            color: #3498db;
+        }
+
+        .controls-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        button,
+        select {
+            padding: 8px 15px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        button {
+            background-color: #ecf0f1;
+            transition: 0.2s;
+            color: var(--text);
+        }
+
+        button:hover {
+            background-color: #bdc3c7;
+        }
+
+        .btn-danger {
+            background-color: #fce4e4;
+            color: var(--danger);
+            border-color: #f5b7b1;
+        }
+
+        .btn-danger:hover {
+            background-color: var(--danger);
+            color: white;
+        }
+
+        .chart-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            flex: 1;
+            min-height: 400px;
+            position: relative;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column;
+            }
+
+            aside {
+                width: 100%;
+                height: 35vh;
+                border-right: none;
+                border-bottom: 1px solid #34495e;
+            }
+
+            main {
+                height: 65vh;
+                padding: 15px;
+            }
+
+            .header-card {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+
+            .header-card>div {
+                text-align: left !important;
+            }
+
+            .controls-card {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .controls-card>div {
+                margin-left: 0 !important;
+                margin-top: 10px;
+            }
+        }
+
+        /* Custom Modal Overlay */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-box {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            width: 420px;
+            max-width: 90vw;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: modalIn 0.2s ease-out;
+        }
+
+        @keyframes modalIn {
+            from {
+                transform: scale(0.9);
+                opacity: 0;
+            }
+
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .modal-box h2 {
+            margin-bottom: 10px;
+            font-size: 1.3rem;
+            color: var(--sidebar);
+        }
+
+        .modal-box p {
+            color: #7f8c8d;
+            margin-bottom: 20px;
+            line-height: 1.5;
+            font-size: 0.95rem;
+        }
+
+        .modal-box input {
+            width: 100%;
+            padding: 10px 14px;
+            border: 2px solid #dde1e3;
+            border-radius: 8px;
+            font-size: 1rem;
+            margin-bottom: 20px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .modal-box input:focus {
+            border-color: var(--accent);
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .modal-actions button {
+            padding: 10px 22px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            border: none;
+            cursor: pointer;
+            transition: 0.15s;
+        }
+
+        .modal-btn-cancel {
+            background: #ecf0f1;
+            color: var(--text);
+        }
+
+        .modal-btn-cancel:hover {
+            background: #dde1e3;
+        }
+
+        .modal-btn-confirm {
+            background: var(--accent);
+            color: white;
+        }
+
+        .modal-btn-confirm:hover {
+            background: #2471a3;
+        }
+
+        .modal-btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .modal-btn-danger:hover {
+            background: #c0392b;
+        }
+    </style>
+</head>
+
+<body>
+
+    <aside>
+        <div class="sidebar-header">Climate Network</div>
+        <ul id="node-list">
+            <li style="padding:20px; text-align:center;">Loading nodes...</li>
+        </ul>
+        <button class="add-node-btn" onclick="showAddNodeModal()">+ Add New Node</button>
+    </aside>
+
+    <main id="main-content" style="display: none;">
+
+        <div class="header-card">
+            <div>
+                <h1 id="ui-title">Select a Node</h1>
+                <p style="color: #7f8c8d;" id="ui-subtitle">Hardware ID: -- | Last Sync: --</p>
+            </div>
+            <div style="text-align: right;">
+                <span id="ui-status" class="badge online">Online</span>
+            </div>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div style="color: #7f8c8d; font-weight: bold;">CURRENT TEMPERATURE</div>
+                <div class="stat-value temp-color" id="ui-temp">--°C</div>
+            </div>
+            <div class="stat-card">
+                <div style="color: #7f8c8d; font-weight: bold;">CURRENT HUMIDITY</div>
+                <div class="stat-value hum-color" id="ui-hum">--%</div>
+            </div>
+        </div>
+
+        <div class="controls-card">
+            <button onclick="showRenameModal()"><i class="ph ph-pencil-simple"></i> Rename</button>
+            <button class="btn-danger" onclick="showDeleteModal()"><i class="ph ph-trash"></i> Delete Node</button>
+
+            <div style="margin-left: auto;">
+                <label style="font-weight: bold; margin-right: 10px;">OTA Update Interval:</label>
+                <select id="ui-interval" onchange="triggerIntervalChange(this.value)">
+                    <option value="5">5 Minutes</option>
+                    <option value="10">10 Minutes</option>
+                    <option value="15">15 Minutes</option>
+                    <option value="30">30 Minutes</option>
+                    <option value="60">1 Hour</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="chart-card" style="min-height: 420px;">
+            <!-- Custom Legend Outside Scrollable Area -->
+            <div
+                style="display: flex; justify-content: center; gap: 30px; margin-bottom: 15px; font-weight: bold; font-size: 0.95rem;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="width: 30px; height: 3px; background-color: #e67e22;"></div>
+                    <span style="color: #e67e22;">Temperature (°C)</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="width: 30px; height: 0px; border-top: 2px dashed #3498db;"></div>
+                    <span style="color: #3498db;">Humidity (%)</span>
+                </div>
+            </div>
+
+            <!-- 3-Column Chart Layout: Fixed Left Axis | Scrollable Chart | Fixed Right Axis -->
+            <div style="display: flex; align-items: stretch; height: 340px; position: relative;">
+                <div id="yAxisLeft"
+                    style="width: 55px; flex-shrink: 0; position: relative; background: var(--bg); z-index: 5;"></div>
+                <div id="chartScrollWrapper" style="flex: 1; overflow-x: auto; overflow-y: hidden; position: relative;">
+                    <div id="dateHeaderRow"
+                        style="display: flex; position: absolute; top: 0; left: 0; height: 28px; z-index: 10; pointer-events: none;">
+                    </div>
+                    <div id="chartContainer" style="height: 100%;">
+                        <canvas id="telemetryChart"></canvas>
+                    </div>
+                </div>
+                <div id="yAxisRight"
+                    style="width: 55px; flex-shrink: 0; position: relative; background: var(--bg); z-index: 5;"></div>
+            </div>
+        </div>
+
+        <div class="table-card"
+            style="background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px;">
+            <h2 style="color: var(--sidebar); margin-bottom: 15px; font-size: 1.2rem;">Raw Data Logs</h2>
+            <div style="overflow-x: auto; max-height: 400px; overflow-y: auto;">
+                <table style="width: 100%; border-collapse: collapse; text-align: left; min-width: 500px;">
+                    <thead style="position: sticky; top: 0; background: #ecf0f1; z-index: 1;">
+                        <tr>
+                            <th style="padding: 12px; border-bottom: 2px solid #bdc3c7; color: #2c3e50;">Date</th>
+                            <th style="padding: 12px; border-bottom: 2px solid #bdc3c7; color: #2c3e50;">Time</th>
+                            <th style="padding: 12px; border-bottom: 2px solid #bdc3c7; color: #e67e22;">Temperature
+                                (°C)</th>
+                            <th style="padding: 12px; border-bottom: 2px solid #bdc3c7; color: #3498db;">Humidity (%)
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="raw-data-table">
+                        <!-- populated via JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal: Add Node -->
+    <div class="modal-overlay" id="modal-add-node">
+        <div class="modal-box">
+            <h2><i class="ph ph-plus"></i> Register New Node</h2>
+            <p>Enter the Hardware ID number you plan to flash to the ESP32.</p>
+            <input type="number" id="add-node-id" placeholder="e.g., 4" min="1" />
+            <input type="text" id="add-node-label" placeholder="Location name (e.g., Living Room)"
+                style="display:none;" />
+            <div class="modal-actions">
+                <button class="modal-btn-cancel" onclick="closeModal('modal-add-node')">Cancel</button>
+                <button class="modal-btn-confirm" id="add-node-next-btn" onclick="addNodeStep()">Next</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Rename -->
+    <div class="modal-overlay" id="modal-rename">
+        <div class="modal-box">
+            <h2><i class="ph ph-pencil-simple"></i> Rename Node</h2>
+            <p>Enter a new location name for this sensor node.</p>
+            <input type="text" id="rename-input" placeholder="New name" />
+            <div class="modal-actions">
+                <button class="modal-btn-cancel" onclick="closeModal('modal-rename')">Cancel</button>
+                <button class="modal-btn-confirm" onclick="confirmRename()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Delete Confirmation -->
+    <div class="modal-overlay" id="modal-delete">
+        <div class="modal-box">
+            <h2 style="color: var(--danger);"><i class="ph ph-warning"></i> Delete Node</h2>
+            <p id="delete-message">Are you sure? This will permanently erase the node and ALL of its historical data.
+                This cannot be undone.</p>
+            <div class="modal-actions">
+                <button class="modal-btn-cancel" onclick="closeModal('modal-delete')">Cancel</button>
+                <button class="modal-btn-danger" onclick="confirmDelete()">Delete Permanently</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'http://127.0.0.1:54321'; // Local Supabase URL
+        const SUPABASE_KEY = 'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH'; // Local Supabase Public Key
+        const headers = { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' };
+
+        let globalNodes = [];
+        let activeNodeId = null;
+        let chartInstance = null;
+
+        function openModal(id) { document.getElementById(id).classList.add('active'); }
+        function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+        document.querySelectorAll('.modal-overlay').forEach(modal => {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) closeModal(modal.id);
+            });
+        });
+
+        async function fetchRoster() {
+            try {
+                const res = await fetch(`${SUPABASE_URL}/rest/v1/sensor_nodes`, { headers });
+                globalNodes = await res.json();
+
+                globalNodes.sort((a, b) => a.node_number - b.node_number);
+                renderSidebar();
+
+                if (!activeNodeId && globalNodes.length > 0) {
+                    selectNode(globalNodes[0].node_number);
+                } else if (activeNodeId) {
+                    const stillExists = globalNodes.find(n => n.node_number === activeNodeId);
+                    if (stillExists) selectNode(activeNodeId);
+                    else { activeNodeId = null; document.getElementById('main-content').style.display = 'none'; }
+                }
+            } catch (error) {
+                document.getElementById('node-list').innerHTML = `<li style="padding:20px; color:#e74c3c;">Database Connection Failed</li>`;
+            }
+        }
+
+        function renderSidebar() {
+            const list = document.getElementById('node-list');
+            list.innerHTML = '';
+
+            globalNodes.forEach(node => {
+                const li = document.createElement('li');
+                li.className = `node-item ${node.node_number === activeNodeId ? 'active' : ''}`;
+                li.onclick = () => selectNode(node.node_number);
+                li.innerHTML = `
+                    <span>${node.custom_label}</span>
+                    <span style="font-size: 0.8rem; opacity: 0.7;">ID:${node.node_number}</span>
+                `;
+                list.appendChild(li);
+            });
+        }
+
+        async function selectNode(nodeId) {
+            activeNodeId = nodeId;
+            renderSidebar();
+            document.getElementById('main-content').style.display = 'flex';
+
+            const activeNodeInfo = globalNodes.find(n => n.node_number === nodeId);
+
+            const logsRes = await fetch(`${SUPABASE_URL}/rest/v1/climate_logs?node_number=eq.${nodeId}&order=created_at.desc`, { headers });
+            let logs = await logsRes.json();
+            logs = logs.reverse();
+
+            const latest = logs.length > 0 ? logs[logs.length - 1] : null;
+
+            document.getElementById('ui-title').innerText = activeNodeInfo.custom_label;
+            document.getElementById('ui-interval').value = activeNodeInfo.sleep_interval_minutes || 15;
+
+            if (latest) {
+                const timeString = new Date(latest.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                document.getElementById('ui-subtitle').innerText = `Hardware ID: Node ${nodeId} | Last Sync: ${timeString}`;
+                document.getElementById('ui-temp').innerText = `${latest.temperature_c}°C`;
+                document.getElementById('ui-hum').innerText = `${latest.humidity}%`;
+
+                const hoursSinceLastLog = (new Date() - new Date(latest.created_at)) / (1000 * 60 * 60);
+                const statusBadge = document.getElementById('ui-status');
+                if (hoursSinceLastLog > 2) {
+                    statusBadge.className = 'badge offline';
+                    statusBadge.innerText = 'Offline (Timeout)';
+                } else {
+                    statusBadge.className = 'badge online';
+                    statusBadge.innerText = 'Online';
+                }
+            } else {
+                document.getElementById('ui-subtitle').innerText = `Hardware ID: Node ${nodeId} | Awaiting first transmission`;
+                document.getElementById('ui-temp').innerText = `--°C`;
+                document.getElementById('ui-hum').innerText = `--%`;
+                document.getElementById('ui-status').className = 'badge offline';
+                document.getElementById('ui-status').innerText = 'No Data';
+            }
+
+            drawGraph(logs);
+            renderTable(logs);
+        }
+
+        function renderTable(logs) {
+            const tbody = document.getElementById('raw-data-table');
+            tbody.innerHTML = '';
+
+            const reversedLogs = [...logs].reverse();
+            reversedLogs.forEach(l => {
+                const d = new Date(l.created_at);
+                const dateStr = d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+                const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                const tr = document.createElement('tr');
+                tr.style.borderBottom = '1px solid #ecf0f1';
+                tr.innerHTML = `
+                    <td style="padding: 12px;">${dateStr}</td>
+                    <td style="padding: 12px; font-weight: bold;">${timeStr}</td>
+                    <td style="padding: 12px; color: #e67e22;">${l.temperature_c}</td>
+                    <td style="padding: 12px; color: #3498db;">${l.humidity}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        const dateBordersPlugin = {
+            id: 'dateBorders',
+            afterDatasetsDraw(chart) {
+                const meta = chart._dateBordersMeta;
+                if (!meta) return;
+
+                const ctx = chart.ctx;
+                const xScale = chart.scales.x;
+                const chartArea = chart.chartArea;
+
+                // Draw centered vertical border lines (only if there are date transitions)
+                if (meta.borderIndices && meta.borderIndices.length > 0) {
+                    ctx.save();
+                    ctx.strokeStyle = '#e74c3c';
+                    ctx.lineWidth = 2.5;
+                    ctx.setLineDash([]);
+
+                    meta.borderIndices.forEach(idx => {
+                        const x1 = xScale.getPixelForTick(idx - 1);
+                        const x2 = xScale.getPixelForTick(idx);
+                        const midX = (x1 + x2) / 2;
+
+                        ctx.beginPath();
+                        ctx.moveTo(midX, 0);
+                        ctx.lineTo(midX, chartArea.bottom);
+                        ctx.stroke();
+                    });
+
+                    ctx.restore();
+                }
+
+                if (meta.dateGroups && meta.dateGroups.length > 0) {
+                    const headerRow = document.getElementById('dateHeaderRow');
+                    if (!headerRow) return;
+                    headerRow.innerHTML = '';
+                    const chartTotalWidth = chart.canvas.width / (window.devicePixelRatio || 1);
+
+                    meta.dateGroups.forEach((group, i) => {
+                        const firstTick = xScale.getPixelForTick(group[0].index);
+                        const lastTick = xScale.getPixelForTick(group[group.length - 1].index);
+
+                        let sectionStart, sectionEnd;
+                        if (i === 0) {
+                            // Start from 0 so the flex widths align perfectly with canvas pixel coordinates
+                            sectionStart = 0;
+                        } else {
+                            const prevLastTick = xScale.getPixelForTick(meta.dateGroups[i - 1][meta.dateGroups[i - 1].length - 1].index);
+                            sectionStart = (prevLastTick + firstTick) / 2;
+                        }
+                        if (i === meta.dateGroups.length - 1) {
+                            sectionEnd = chartTotalWidth;
+                        } else {
+                            const nextFirstTick = xScale.getPixelForTick(meta.dateGroups[i + 1][0].index);
+                            sectionEnd = (lastTick + nextFirstTick) / 2;
+                        }
+
+                        const sectionDiv = document.createElement('div');
+                        sectionDiv.style.cssText = `
+                            width: ${sectionEnd - sectionStart}px;
+                            flex-shrink: 0;
+                            box-sizing: border-box;
+                            border-right: none;
+                            height: 100%;
+                            position: relative;
+                        `;
+
+                        // Inner div sticks to the left but stays within the outer wrapper
+                        const stickyDiv = document.createElement('div');
+                        stickyDiv.style.cssText = `
+                            position: sticky; left: 0;
+                            display: inline-block;
+                            font-weight: bold; font-size: 0.9rem; color: #e74c3c;
+                            padding: 4px 12px;
+                            white-space: nowrap;
+                        `;
+                        stickyDiv.textContent = group[0].dateStr;
+
+                        sectionDiv.appendChild(stickyDiv);
+                        headerRow.appendChild(sectionDiv);
+                    });
+                }
+            }
+        };
+        Chart.register(dateBordersPlugin);
+
+        function drawGraph(logs) {
+            const chartContainer = document.getElementById('chartContainer');
+            const dateHeaderRow = document.getElementById('dateHeaderRow');
+
+            // Fully reset previous state
+            dateHeaderRow.innerHTML = '';
+            if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+
+            if (!logs || logs.length === 0) {
+                chartContainer.style.width = '100%';
+                dateHeaderRow.style.width = '100%';
+                return;
+            }
+
+            const parentWidth = chartContainer.parentElement.clientWidth;
+            chartContainer.style.width = Math.max(parentWidth, logs.length * 60) + 'px';
+            dateHeaderRow.style.width = chartContainer.style.width;
+
+            const ctx = document.getElementById('telemetryChart').getContext('2d');
+
+            const labels = [];
+            const dateGroups = [];
+            let currentGroup = [];
+            const borderIndices = [];
+
+            logs.forEach((l, i) => {
+                const d = new Date(l.created_at);
+                const dateStr = d.toLocaleDateString([], { month: 'short', day: 'numeric' }).toUpperCase();
+                const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                labels.push(timeStr);
+
+                if (currentGroup.length > 0 && currentGroup[0].dateStr === dateStr) {
+                    currentGroup.push({ index: i, dateStr });
+                } else {
+                    if (currentGroup.length > 0) {
+                        dateGroups.push(currentGroup);
+                        borderIndices.push(i);
+                    }
+                    currentGroup = [{ index: i, dateStr }];
+                }
+            });
+            if (currentGroup.length > 0) dateGroups.push(currentGroup);
+
+            const temps = logs.map(l => l.temperature_c);
+            const hums = logs.map(l => l.humidity);
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        { label: 'Temperature (°C)', data: temps, borderColor: '#e67e22', backgroundColor: 'rgba(230, 126, 34, 0.1)', borderWidth: 3, fill: true, tension: 0.3, yAxisID: 'y' },
+                        { label: 'Humidity (%)', data: hums, borderColor: '#3498db', backgroundColor: 'rgba(52, 152, 219, 0.05)', borderWidth: 2, borderDash: [5, 5], tension: 0.3, yAxisID: 'y1' }
+                    ]
+                },
+                options: {
+                    layout: {
+                        padding: {
+                            top: 28
+                        }
+                    },
+                    responsive: true, maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: {
+                            grid: { drawOnChartArea: true, color: 'rgba(0,0,0,0.05)', lineWidth: 1 }
+                        },
+                        y: {
+                            type: 'linear', display: true, position: 'left',
+                            min: 0, max: 50,
+                            ticks: { display: false },
+                            grid: { color: 'rgba(230, 126, 34, 0.08)' }
+                        },
+                        y1: {
+                            type: 'linear', display: true, position: 'right',
+                            min: 0, max: 100,
+                            ticks: { display: false },
+                            grid: { drawOnChartArea: false }
+                        }
+                    }
+                }
+            });
+
+            chartInstance._dateBordersMeta = { borderIndices, dateGroups };
+
+            // Render fixed HTML Y-Axis labels aligned perfectly to Chart.js internal grid coordinates
+            setTimeout(() => {
+                const yAxisLeft = document.getElementById('yAxisLeft');
+                const yAxisRight = document.getElementById('yAxisRight');
+                if (!yAxisLeft || !yAxisRight || !chartInstance) return;
+
+                yAxisLeft.innerHTML = '';
+                yAxisRight.innerHTML = '';
+
+                // Temperature Axis
+                [50, 40, 30, 20, 10, 0].forEach(val => {
+                    const y = chartInstance.scales.y.getPixelForValue(val);
+                    const span = document.createElement('span');
+                    span.style.cssText = `position: absolute; right: 8px; top: ${y}px; transform: translateY(-50%); color: #e67e22; font-weight: bold; font-size: 0.8rem;`;
+                    span.textContent = val + '°C';
+                    yAxisLeft.appendChild(span);
+                });
+
+                // Humidity Axis
+                [100, 80, 60, 40, 20, 0].forEach(val => {
+                    const y = chartInstance.scales.y1.getPixelForValue(val);
+                    const span = document.createElement('span');
+                    span.style.cssText = `position: absolute; left: 8px; top: ${y}px; transform: translateY(-50%); color: #3498db; font-weight: bold; font-size: 0.8rem;`;
+                    span.textContent = val + '%';
+                    yAxisRight.appendChild(span);
+                });
+            }, 10);
+        }
+
+        function showRenameModal() {
+            const node = globalNodes.find(n => n.node_number === activeNodeId);
+            document.getElementById('rename-input').value = node.custom_label;
+            openModal('modal-rename');
+            setTimeout(() => document.getElementById('rename-input').focus(), 100);
+        }
+
+        async function confirmRename() {
+            const newName = document.getElementById('rename-input').value.trim();
+            const node = globalNodes.find(n => n.node_number === activeNodeId);
+            if (newName && newName !== node.custom_label) {
+                await fetch(`${SUPABASE_URL}/rest/v1/sensor_nodes?node_number=eq.${activeNodeId}`, {
+                    method: 'PATCH', headers: { ...headers, 'Prefer': 'return=minimal' }, body: JSON.stringify({ custom_label: newName })
+                });
+                fetchRoster();
+            }
+            closeModal('modal-rename');
+        }
+
+        async function triggerIntervalChange(newInterval) {
+            const btn = document.getElementById('ui-interval');
+            btn.style.backgroundColor = '#f39c12';
+
+            await fetch(`${SUPABASE_URL}/rest/v1/sensor_nodes?node_number=eq.${activeNodeId}`, {
+                method: 'PATCH', headers: { ...headers, 'Prefer': 'return=minimal' }, body: JSON.stringify({ sleep_interval_minutes: parseInt(newInterval) })
+            });
+
+            setTimeout(() => { btn.style.backgroundColor = 'white'; }, 1000);
+            fetchRoster();
+        }
+
+        // --- 7. ADD & DELETE NODE LOGIC (WITH MODALS) ---
+        let addNodePhase = 1;
+
+        function showAddNodeModal() {
+            addNodePhase = 1;
+            document.getElementById('add-node-id').value = '';
+            document.getElementById('add-node-label').value = '';
+            document.getElementById('add-node-label').style.display = 'none';
+            document.getElementById('add-node-next-btn').innerText = 'Next';
+            openModal('modal-add-node');
+            setTimeout(() => document.getElementById('add-node-id').focus(), 100);
+        }
+
+        async function addNodeStep() {
+            if (addNodePhase === 1) {
+                const nodeId = document.getElementById('add-node-id').value;
+                if (!nodeId || isNaN(nodeId) || parseInt(nodeId) <= 0) {
+                    document.getElementById('add-node-id').style.borderColor = '#e74c3c';
+                    return;
+                }
+                if (globalNodes.some(n => n.node_number == nodeId)) {
+                    document.getElementById('add-node-id').style.borderColor = '#e74c3c';
+                    document.getElementById('add-node-id').value = '';
+                    document.getElementById('add-node-id').placeholder = `ID ${nodeId} already exists! Try another.`;
+                    return;
+                }
+                document.getElementById('add-node-id').style.borderColor = '#dde1e3';
+                document.getElementById('add-node-label').style.display = 'block';
+                document.getElementById('add-node-label').value = 'New Location';
+                document.getElementById('add-node-next-btn').innerText = 'Register Node';
+                addNodePhase = 2;
+                setTimeout(() => {
+                    document.getElementById('add-node-label').focus();
+                    document.getElementById('add-node-label').select();
+                }, 100);
+            } else {
+                const nodeId = parseInt(document.getElementById('add-node-id').value);
+                const label = document.getElementById('add-node-label').value.trim() || 'New Location';
+                try {
+                    await fetch(`${SUPABASE_URL}/rest/v1/sensor_nodes`, {
+                        method: 'POST',
+                        headers: { ...headers, 'Prefer': 'return=minimal' },
+                        body: JSON.stringify({ node_number: nodeId, custom_label: label, sleep_interval_minutes: 15, status: 'Active' })
+                    });
+                    closeModal('modal-add-node');
+                    fetchRoster();
+                } catch (error) {
+                    document.getElementById('add-node-label').style.borderColor = '#e74c3c';
+                }
+            }
+        }
+
+        function showDeleteModal() {
+            const node = globalNodes.find(n => n.node_number === activeNodeId);
+            document.getElementById('delete-message').innerText = `Are you sure you want to delete "${node.custom_label}" (Node ${activeNodeId})?\n\nThis will permanently erase the node and ALL of its historical temperature logs. This cannot be undone.`;
+            openModal('modal-delete');
+        }
+
+        async function confirmDelete() {
+            try {
+                await fetch(`${SUPABASE_URL}/rest/v1/climate_logs?node_number=eq.${activeNodeId}`, {
+                    method: 'DELETE', headers: headers
+                });
+                await fetch(`${SUPABASE_URL}/rest/v1/sensor_nodes?node_number=eq.${activeNodeId}`, {
+                    method: 'DELETE', headers: headers
+                });
+                activeNodeId = null;
+                document.getElementById('main-content').style.display = 'none';
+                closeModal('modal-delete');
+                fetchRoster();
+            } catch (error) {
+                closeModal('modal-delete');
+            }
+        }
+
+        // Start the engine
+        fetchRoster();
+        setInterval(fetchRoster, 60000); // Fallback polling
+
+        // Supabase Realtime Subscription
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        supabaseClient
+            .channel('public:climate_logs')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'climate_logs' }, payload => {
+                if (activeNodeId && payload.new.node_number === activeNodeId) {
+                    selectNode(activeNodeId); // Refresh graph immediately
+                }
+            })
+            .subscribe();
+
+        supabaseClient
+            .channel('public:sensor_nodes')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'sensor_nodes' }, payload => {
+                fetchRoster(); // Refresh the sidebar when a node connects or updates
+            })
+            .subscribe();
+    </script>
+</body>
+
+</html>
