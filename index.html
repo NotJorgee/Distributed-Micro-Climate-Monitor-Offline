@@ -406,6 +406,8 @@
             <div style="margin-left: auto;">
                 <label style="font-weight: bold; margin-right: 10px;">OTA Update Interval:</label>
                 <select id="ui-interval" onchange="triggerIntervalChange(this.value)">
+                    <option value="0.5">30 Seconds</option>
+                    <option value="1">1 Minute</option>
                     <option value="5">5 Minutes</option>
                     <option value="10">10 Minutes</option>
                     <option value="15">15 Minutes</option>
@@ -416,7 +418,6 @@
         </div>
 
         <div class="chart-card" style="min-height: 420px;">
-            <!-- Custom Legend Outside Scrollable Area -->
             <div
                 style="display: flex; justify-content: center; gap: 30px; margin-bottom: 15px; font-weight: bold; font-size: 0.95rem;">
                 <div style="display: flex; align-items: center; gap: 8px;">
@@ -429,7 +430,6 @@
                 </div>
             </div>
 
-            <!-- 3-Column Chart Layout: Fixed Left Axis | Scrollable Chart | Fixed Right Axis -->
             <div style="display: flex; align-items: stretch; height: 340px; position: relative;">
                 <div id="yAxisLeft"
                     style="width: 55px; flex-shrink: 0; position: relative; background: var(--bg); z-index: 5;"></div>
@@ -462,14 +462,12 @@
                         </tr>
                     </thead>
                     <tbody id="raw-data-table">
-                        <!-- populated via JS -->
-                    </tbody>
+                        </tbody>
                 </table>
             </div>
         </div>
     </main>
 
-    <!-- Modal: Add Node -->
     <div class="modal-overlay" id="modal-add-node">
         <div class="modal-box">
             <h2><i class="ph ph-plus"></i> Register New Node</h2>
@@ -484,7 +482,6 @@
         </div>
     </div>
 
-    <!-- Modal: Rename -->
     <div class="modal-overlay" id="modal-rename">
         <div class="modal-box">
             <h2><i class="ph ph-pencil-simple"></i> Rename Node</h2>
@@ -497,7 +494,6 @@
         </div>
     </div>
 
-    <!-- Modal: Delete Confirmation -->
     <div class="modal-overlay" id="modal-delete">
         <div class="modal-box">
             <h2 style="color: var(--danger);"><i class="ph ph-warning"></i> Delete Node</h2>
@@ -856,7 +852,7 @@
             btn.style.backgroundColor = '#f39c12';
 
             await fetch(`${SUPABASE_URL}/rest/v1/sensor_nodes?node_number=eq.${activeNodeId}`, {
-                method: 'PATCH', headers: { ...headers, 'Prefer': 'return=minimal' }, body: JSON.stringify({ sleep_interval_minutes: parseInt(newInterval) })
+                method: 'PATCH', headers: { ...headers, 'Prefer': 'return=minimal' }, body: JSON.stringify({ sleep_interval_minutes: parseFloat(newInterval) })
             });
 
             setTimeout(() => { btn.style.backgroundColor = 'white'; }, 1000);
